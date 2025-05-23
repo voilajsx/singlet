@@ -9,7 +9,7 @@
 
 import { readdirSync } from 'fs';
 import { join, dirname } from 'path';
-import { fileURLToPath } from 'url'; // Corrected syntax
+import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -28,6 +28,7 @@ async function autoRegisterFeatures(fastify) {
         .filter((dirent) => dirent.isDirectory())
         .map((dirent) => dirent.name);
     } catch (error) {
+      // Use Fastify's logger for warnings
       fastify.log.warn(
         '[Singlet] Backend directory not found or cannot be read:',
         error.message
@@ -47,17 +48,18 @@ async function autoRegisterFeatures(fastify) {
         const routeFile = join(
           backendPath,
           featureDir,
-          'src', // Added 'src' directory based on previous discussion
+          'src',
           `${featureDir}.routes.js`
         );
 
         fastify.log.info(
           `[Singlet] Attempting to import feature from: file://${routeFile}`
-        ); // Log the full path
+        );
 
         const { default: featureRoutes } = await import(`file://${routeFile}`);
 
         // Register feature routes with /api prefix
+        // Pass Fastify's logger to the feature routes for contextual logging
         await fastify.register(featureRoutes, { prefix: `/api/${featureDir}` });
 
         fastify.log.info(`[Singlet] ✓ Registered feature: /api/${featureDir}`);
@@ -65,7 +67,7 @@ async function autoRegisterFeatures(fastify) {
         // Log the entire error object for detailed debugging
         fastify.log.error(
           `[Singlet] ✗ Failed to register feature ${featureDir} from path ${featureDir}/src/${featureDir}.routes.js:`,
-          error // Log the full error object here
+          error
         );
       }
     }
@@ -80,6 +82,7 @@ async function autoRegisterFeatures(fastify) {
 /**
  * Register all routes for the Singlet framework
  * @param {import('fastify').FastifyInstance} fastify - Fastify instance
+ * @param {object} options - Fastify plugin options
  */
 async function routes(fastify, options) {
   // Auto-register backend features
@@ -87,12 +90,13 @@ async function routes(fastify, options) {
 
   // Root route
   fastify.get('/', async (request, reply) => {
+    // Assuming appConfig is accessible or passed down; for minimal code, returning static values
     return {
       message: 'Hello from @voilajsx/singlet Framework!',
       framework: '@voilajsx/singlet',
       status: 'Server is running',
       timestamp: new Date().toISOString(),
-      version: '1.0.0',
+      version: '1.0.0', // This could come from config.app.version
     };
   });
 
@@ -109,10 +113,11 @@ async function routes(fastify, options) {
 
   // API information route
   fastify.get('/api/info', async (request, reply) => {
+    // You might get this info from the loaded appConfig now
     return {
       name: 'Singlet Framework API',
       framework: '@voilajsx/singlet',
-      version: '1.0.0',
+      version: '1.0.0', // This could come from config.app.version
       environment: process.env.NODE_ENV || 'development',
       node_version: process.version,
       platform: process.platform,

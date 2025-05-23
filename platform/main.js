@@ -10,6 +10,11 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import routes from './routing.js';
+import { loadConfig, ConfigError } from '@voilajsx/appkit/config';
+import { configSchema, envMap } from './app.config.js';
+
+// Import logger initialization and getter from the new centralized logger file
+import { initializeAndGetAppLogger, getAppLogger } from './lib/logger.js';
 
 /**
  * @typedef {Object} ServerConfig
@@ -18,31 +23,9 @@ import routes from './routing.js';
  * @property {string} environment - Current environment (development/production)
  */
 
-/**
- * @typedef {Object} MemoryUsage
- * @property {number} rss - Resident Set Size
- * @property {number} heapTotal - Total heap size
- * @property {number} heapUsed - Used heap size
- * @property {number} external - External memory usage
- */
-
-/**
- * Fastify instance with configured logger for Singlet framework
- * @type {import('fastify').FastifyInstance}
- */
-const fastify = Fastify({
-  logger: {
-    level: 'info',
-    transport: {
-      target: 'pino-pretty',
-      options: {
-        colorize: true,
-        translateTime: 'HH:MM:ss Z',
-        ignore: 'pid,hostname',
-      },
-    },
-  },
-});
+let appConfig = {};
+let logger; // This logger variable will hold the initialized instance
+let fastifyInstance; // Declared at module scope
 
 /**
  * Bootstrap the Singlet framework application
@@ -54,24 +37,110 @@ const fastify = Fastify({
  */
 async function bootstrap() {
   try {
-    // Global request logging middleware
-    fastify.addHook('onRequest', async (request, reply) => {
-      request.log.info(`[Singlet] ${request.method} ${request.url}`);
+    // 1. Load Application Configuration from environment variables
+    const loadedConfig = await loadConfig(process.env, {
+      validate: true,
+      schema: configSchema,
+      env: true,
+      interpolate: true,
+      map: envMap,
+    });
+    appConfig = loadedConfig;
+
+    appConfig.app = appConfig.app || {};
+    appConfig.server = appConfig.server || {};
+    appConfig.logging = appConfig.logging || {};
+    appConfig.features = appConfig.features || {};
+
+    appConfig.server.port = parseInt(appConfig.server.port || '3000', 10);
+    appConfig.server.host = appConfig.server.host || '0.0.0.0';
+
+    if (appConfig.server.ssl) {
+      appConfig.server.ssl.enabled =
+        String(appConfig.server.ssl.enabled || 'false').toLowerCase() ===
+        'true';
+    } else {
+      appConfig.server.ssl = { enabled: false, key: null, cert: null };
+    }
+
+    appConfig.logging.enableFileLogging =
+      String(appConfig.logging.enableFileLogging || 'true').toLowerCase() ===
+      'true';
+    appConfig.logging.retentionDays = parseInt(
+      appConfig.logging.retentionDays || '5',
+      10
+    );
+    appConfig.logging.maxSize = parseInt(
+      appConfig.logging.maxSize || '10485760',
+      10
+    );
+    appConfig.logging.dirname = 'platform/logs';
+    appConfig.logging.filename = appConfig.logging.filename || 'app.log';
+
+    // 2. Initialize Appkit Logger using the new centralized function
+    logger = initializeAndGetAppLogger(
+      {
+        level: appConfig.logging.level,
+        enableFileLogging: appConfig.logging.enableFileLogging,
+        dirname: appConfig.logging.dirname,
+        filename: appConfig.logging.filename,
+        retentionDays: appConfig.logging.retentionDays,
+        maxSize: appConfig.logging.maxSize,
+      },
+      {
+        service: appConfig.app.name || '@voilajsx/singlet-app',
+        environment: appConfig.app.environment || 'development',
+        version: appConfig.app.version || '1.0.0',
+      }
+    );
+
+    logger.info('[Application] Greeting! Starting your Singlet application...');
+
+    // 3. Initialize Fastify
+    fastifyInstance = Fastify({
+      logger: false, // Disable Fastify's default logger
     });
 
-    // CORS configuration for Singlet framework
-    await fastify.register(cors, {
+    fastifyInstance.addHook('onRequest', async (request, reply) => {
+      logger.info(`[Singlet] Incoming request`, {
+        method: request.method,
+        url: request.url,
+        remoteAddress: request.ip,
+      });
+    });
+
+    fastifyInstance.addHook('onResponse', async (request, reply) => {
+      logger.info(`[Singlet] Request completed`, {
+        method: request.method,
+        url: request.url,
+        statusCode: reply.statusCode,
+        responseTime: reply.elapsedTime,
+      });
+    });
+
+    await fastifyInstance.register(cors, {
       origin: true,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization'],
     });
 
-    // Register all Singlet routes
-    await fastify.register(routes);
+    await fastifyInstance.register(routes);
 
-    // Global error handler for Singlet framework
-    fastify.setErrorHandler(async (error, request, reply) => {
-      request.log.error('[Singlet Error]', error);
+    fastifyInstance.setErrorHandler(async (error, request, reply) => {
+      if (logger) {
+        logger.error('Unhandled error occurred', {
+          error: error.message,
+          stack: error.stack,
+          code: error.code,
+          method: request.method,
+          url: request.url,
+        });
+      } else {
+        console.error(
+          '❌ Unhandled error occurred (logger not initialized):',
+          error
+        );
+      }
       reply.status(500).send({
         error: 'Internal Server Error',
         message: error.message,
@@ -80,9 +149,36 @@ async function bootstrap() {
       });
     });
 
-    fastify.log.info('[Singlet] Bootstrap completed successfully');
+    if (logger) {
+      logger.info('[Singlet] Bootstrap completed successfully');
+    } else {
+      console.log(
+        '[Singlet] Bootstrap completed successfully (logger not initialized)'
+      );
+    }
   } catch (err) {
-    fastify.log.error('[Singlet] Bootstrap failed:', err);
+    if (logger) {
+      logger.error('[Singlet] Bootstrap failed:', err);
+    } else {
+      console.error(
+        '❌ Singlet Framework bootstrap failed before logger initialization:',
+        err
+      );
+    }
+    if (err instanceof ConfigError) {
+      console.error(
+        `Config Error Details: Code: ${err.code}, Message: ${err.message}`
+      );
+      if (err.details && err.details.errors) {
+        err.details.errors.forEach((validationErr) => {
+          console.error(
+            `  - Path: ${validationErr.path || 'N/A'}, Issue: ${
+              validationErr.message
+            }`
+          );
+        });
+      }
+    }
     throw err;
   }
 }
@@ -99,19 +195,30 @@ async function start() {
   try {
     await bootstrap();
 
-    const PORT = process.env.PORT || 3000;
-    const HOST = process.env.HOST || '0.0.0.0';
+    const PORT = appConfig.server.port || 3000;
+    const HOST = appConfig.server.host || '0.0.0.0';
 
-    await fastify.listen({ port: PORT, host: HOST });
+    await fastifyInstance.listen({ port: PORT, host: HOST });
 
-    console.log('🚀 @voilajsx/singlet Framework Started:');
-    console.log(`   URL: http://localhost:${PORT}`);
-    console.log(`   Health: http://localhost:${PORT}/health`);
-    console.log(`   API Info: http://localhost:${PORT}/api/info`);
-    console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`   Framework: @voilajsx/singlet v1.0.0`);
+    if (logger) {
+      logger.info('🚀 @voilajsx/singlet Framework Started:', {
+        url: `http://${HOST}:${PORT}`,
+        healthUrl: `http://${HOST}:${PORT}/health`,
+        apiInfoUrl: `http://${HOST}:${PORT}/api/info`,
+        environment: appConfig.app.environment || 'development',
+        frameworkVersion: appConfig.app.version || '1.0.0',
+      });
+    } else {
+      console.log(
+        `🚀 @voilajsx/singlet Framework Started on http://${HOST}:${PORT}`
+      );
+    }
   } catch (err) {
-    fastify.log.error('[Singlet] Server startup failed:', err);
+    if (logger) {
+      logger.error('[Singlet] Server startup failed:', err);
+    } else {
+      console.error('❌ Singlet Framework server startup failed:', err);
+    }
     throw err;
   }
 }
@@ -126,28 +233,84 @@ async function start() {
  */
 async function stop() {
   try {
-    console.log('\n🛑 Shutting down @voilajsx/singlet framework...');
-    await fastify.close();
-    console.log('✅ Singlet framework closed gracefully');
+    if (logger) {
+      logger.info('🛑 Shutting down @voilajsx/singlet framework...');
+    } else {
+      console.log(
+        '\n🛑 Shutting down @voilajsx/singlet framework (logger not initialized)...'
+      );
+    }
+
+    console.log('[Shutdown] Attempting to close Fastify instance...');
+    if (fastifyInstance) {
+      await fastifyInstance.close();
+      console.log('[Shutdown] Fastify instance closed.');
+    } else {
+      console.log(
+        '[Shutdown] Fastify instance not initialized, skipping close.'
+      );
+    }
+
+    console.log(
+      '[Shutdown] Attempting to flush and close logger transports with timeout...'
+    );
+    if (logger) {
+      const loggerShutdownTimeout = 1000;
+      try {
+        await Promise.race([
+          (async () => {
+            await logger.flush();
+            await logger.close();
+          })(),
+          new Promise((resolve, reject) =>
+            setTimeout(
+              () => reject(new Error('Logger shutdown timed out')),
+              loggerShutdownTimeout
+            )
+          ),
+        ]);
+        console.log(
+          '[Shutdown] Logger transports flushed and closed within timeout.'
+        );
+      } catch (loggerErr) {
+        console.warn(
+          `[Shutdown] Warning: ${
+            loggerErr.message || 'Logger shutdown failed'
+          }. Proceeding with exit.`
+        );
+      }
+    } else {
+      console.log(
+        '[Shutdown] Logger not initialized, skipping flush and close.'
+      );
+    }
+
+    if (logger) {
+      logger.info('✅ Singlet framework closed gracefully');
+    } else {
+      console.log('✅ Singlet framework closed gracefully');
+    }
   } catch (err) {
     console.error('❌ Error during Singlet shutdown:', err);
-    throw err;
+  } finally {
+    console.log('[Shutdown] Exiting process...');
+    process.exit(0);
   }
 }
 
-// Handle process signals for graceful shutdown
+/**
+ * Handle process signals for graceful shutdown
+ */
 process.on('SIGINT', async () => {
   await stop();
-  process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
   await stop();
-  process.exit(0);
 });
 
 /**
- * Export Singlet framework functions and instance
+ * Export Singlet framework functions, the Fastify instance as 'app', and the logger getter function.
  * @exports
  */
-export { start, stop, fastify as app };
+export { start, stop, fastifyInstance as app, getAppLogger as appLogger };

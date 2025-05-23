@@ -4,14 +4,23 @@
  * @author VoilaJS Team
  * @package @voilajsx/singlet
  * @version 1.0.0
- * @file /backend/greeting/src/greeting.routes.js
+ * @file /backend/greeting/src/backend.routes.js
  */
+
+// Import the centralized logger getter function
+// --- UPDATED LOGGER IMPORT ---
+import { getAppLogger } from '../../../platform/lib/logger.js';
+// --- END UPDATED LOGGER IMPORT ---
 
 /**
  * Greeting feature routes
  * @param {import('fastify').FastifyInstance} fastify - Fastify instance
+ * @param {object} options - Fastify plugin options
  */
 async function greetingRoutes(fastify, options) {
+  // Get the logger instance and create a child logger for this feature
+  const featureLogger = getAppLogger().child({ feature: 'greeting' });
+
   // Sample greetings data
   const greetings = {
     english: 'Hello',
@@ -28,6 +37,7 @@ async function greetingRoutes(fastify, options) {
   fastify.get('/', async (request, reply) => {
     const languages = Object.keys(greetings);
     const randomLang = languages[Math.floor(Math.random() * languages.length)];
+    featureLogger.info('Random greeting requested', { language: randomLang });
 
     return {
       greeting: greetings[randomLang],
@@ -44,6 +54,7 @@ async function greetingRoutes(fastify, options) {
     const greeting = greetings[language.toLowerCase()];
 
     if (!greeting) {
+      featureLogger.warn(`Greeting for language '${language}' not found`);
       reply.status(404);
       return {
         error: 'Language not found',
@@ -53,6 +64,7 @@ async function greetingRoutes(fastify, options) {
       };
     }
 
+    featureLogger.info(`Specific greeting requested for language: ${language}`);
     return {
       greeting,
       language: language.toLowerCase(),
@@ -64,6 +76,7 @@ async function greetingRoutes(fastify, options) {
 
   // GET /api/greeting/all - Get all available greetings
   fastify.get('/all', async (request, reply) => {
+    featureLogger.debug('All greetings requested');
     return {
       greetings,
       feature: 'greeting',
@@ -77,6 +90,11 @@ async function greetingRoutes(fastify, options) {
   fastify.post('/custom', async (request, reply) => {
     const { name, language = 'english', message } = request.body || {};
     const baseGreeting = greetings[language.toLowerCase()] || greetings.english;
+    featureLogger.info('Custom greeting created', {
+      name,
+      language,
+      customMessage: message,
+    });
 
     return {
       greeting: message || `${baseGreeting}, ${name || 'Friend'}!`,
@@ -91,6 +109,7 @@ async function greetingRoutes(fastify, options) {
 
   // GET /api/greeting/status - Greeting feature status
   fastify.get('/status', async (request, reply) => {
+    featureLogger.debug('Greeting feature status requested');
     return {
       feature: 'greeting',
       status: 'active',
