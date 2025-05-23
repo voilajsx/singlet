@@ -1,0 +1,33 @@
+# ====================================
+# Welcome Feature API Tests
+# File: /backend/welcome/restclient/welcome.http
+# ====================================
+
+@baseUrl = http://localhost:3000
+@welcomeUrl = {{baseUrl}}/api/welcome
+
+### Welcome Routes
+
+# Basic welcome
+GET {{welcomeUrl}}/
+
+###
+
+# Personalized welcome
+GET {{welcomeUrl}}/user/John
+
+###
+
+# Custom welcome message
+POST {{welcomeUrl}}/message
+Content-Type: application/json
+
+{
+  "name": "Alice",
+  "customMessage": "Welcome to Singlet!"
+}
+
+###
+
+# Feature status
+GET {{welcomeUrl}}/status
