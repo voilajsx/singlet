@@ -7,10 +7,7 @@
  * @file /backend/greeting/src/backend.routes.js
  */
 
-// Import the centralized logger getter function
-// --- UPDATED LOGGER IMPORT ---
-import { getAppLogger } from '../../../platform/lib/logger.js';
-// --- END UPDATED LOGGER IMPORT ---
+import { getAppLogger } from '@platform/lib/logger.js';
 
 /**
  * Greeting feature routes

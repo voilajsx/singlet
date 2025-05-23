@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".", // This sets the base directory for resolving modules
+    "paths": {
+      "@platform/*": ["./platform/*"] // Maps @platform/ to the platform/ directory
+    },
+    "module": "NodeNext", // Ensure modern module resolution for Node.js
+    "moduleResolution": "NodeNext",
+    "target": "ESNext",
+    "checkJs": true, // Enable type checking for JavaScript files
+    "noEmit": true // Don't emit any output files (used for type checking only)
+  },
+  "include": ["**/*"], // Include all files in the project
+  "exclude": ["node_modules", "**/node_modules/*", "dist"] // Exclude these directories
+}
