@@ -1,46 +1,38 @@
 /**
- * @fileoverview Main application entry point for Singlet Framework
- * @description Initializes and starts the Singlet Framework with centralized logging
+ * @fileoverview Singlet Framework - Main Entry Point
+ * @description Application startup sequence
  * @package @voilajsx/singlet
  * @file /index.js
  */
 
-// Import from updated platform files
-import { start, getLogger } from './platform/app.js';
+import {
+  setupConfig,
+  setupLogging,
+  createServer,
+  setupRoutes,
+  startServer,
+} from './platform/app.js';
 
-/**
- * Initializes and starts the Singlet Framework application
- * This is the developer's main entry point
- * @async
- * @function initialize
- * @returns {Promise<void>}
+/*
+ * Singlet Framework Startup
  */
-async function initialize() {
-  try {
-    await start();
 
-    const logger = getLogger();
-    logger.info(
-      '[Application] Welcome! Your Singlet application is now fully operational.'
-    );
-  } catch (error) {
-    // Try to use logger if available, fallback to console
-    try {
-      const logger = getLogger();
-      logger.error('❌ [Application] Singlet Framework failed to initialize:', {
-        error: error.message,
-        stack: error.stack,
-      });
-    } catch (loggerError) {
-      // Fallback to console if logger completely failed
-      console.error(
-        '❌ [Application] Singlet Framework failed to initialize:',
-        error
-      );
-    }
-    process.exit(1);
-  }
+try {
+  // Load configuration and environment variables
+  const config = await setupConfig();
+
+  // Initialize structured logging
+  const logger = await setupLogging(config);
+
+  // Create Fastify server with middleware
+  const server = await createServer(config, logger);
+
+  // Register core routes and discover features
+  await setupRoutes(server, config, logger);
+
+  // Start listening for requests
+  await startServer(server, config, logger);
+} catch (error) {
+  console.error('Startup failed:', error.message);
+  process.exit(1);
 }
-
-// Start the application initialization process
-initialize();

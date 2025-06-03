@@ -6,7 +6,7 @@ node_modules/
 .env.*
 
 # Logs
-logs/
+platform/logs/
 *.log
 npm-debug.log*
 yarn-debug.log*

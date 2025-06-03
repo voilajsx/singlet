@@ -18,13 +18,25 @@ GET {{welcomeUrl}}/user/John
 
 ###
 
-# Custom welcome message
+# Custom welcome message - Success case
 POST {{welcomeUrl}}/message
 Content-Type: application/json
 
 {
   "name": "Alice",
   "customMessage": "Welcome to Singlet!"
+}
+
+###
+
+# Custom welcome message - Validation failure (missing customMessage)
+# This request should return a 400 Validation Error.
+POST {{welcomeUrl}}/message
+Content-Type: application/json
+
+{
+  "name": "Bob"
+  // customMessage is required but missing
 }
 
 ###

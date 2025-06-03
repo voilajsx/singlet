@@ -7,18 +7,21 @@
  * @file /backend/welcome/src/welcome.routes.js
  */
 
-/**
- * Welcome feature routes
- * @param {import('fastify').FastifyInstance} fastify - Fastify instance
- * @param {object} options - Fastify plugin options
- */
-async function welcomeRoutes(fastify, options) {
-  // Create a child logger for the welcome feature for more granular context
-  const featureLogger = fastify.log.child({ feature: 'welcome' });
+import { validateRequest } from '@platform/lib/validation.js';
+import { getLogger } from '@platform/lib/logging.js';
+import { notFoundError } from '@platform/lib/error.js';
 
-  // GET /api/welcome - Get welcome message
-  fastify.get('/', async (request, reply) => {
-    featureLogger.info('Welcome root endpoint hit');
+/**
+ * Welcome feature routes.
+ * @param {import('fastify').FastifyInstance} voila - Fastify instance.
+ */
+async function welcomeRoutes(voila) {
+  const logger = getLogger('welcome');
+
+  logger.info('🎯 Initializing welcome routes...');
+
+  voila.get('/', async (request, reply) => {
+    logger.info('Welcome root endpoint hit');
     return {
       message: 'Welcome to Singlet Framework!',
       feature: 'welcome',
@@ -27,10 +30,9 @@ async function welcomeRoutes(fastify, options) {
     };
   });
 
-  // GET /api/welcome/user/:name - Personalized welcome
-  fastify.get('/user/:name', async (request, reply) => {
+  voila.get('/user/:name', async (request, reply) => {
     const { name } = request.params;
-    featureLogger.info(`Personalized welcome for user: ${name}`);
+    logger.info(`Personalized welcome for user: ${name}`);
     return {
       message: `Welcome ${name} to Singlet Framework!`,
       feature: 'welcome',
@@ -40,29 +42,38 @@ async function welcomeRoutes(fastify, options) {
     };
   });
 
-  // POST /api/welcome/message - Create custom welcome message
-  fastify.post('/message', async (request, reply) => {
-    const { name, customMessage } = request.body || {};
-    featureLogger.info('Custom welcome message created', {
+  voila.post('/message', async (request, reply) => {
+    logger.debug('Processing custom welcome message request', {
+      bodyKeys: Object.keys(request.body || {}),
+    });
+
+    const { name, customMessage } = validateRequest(request.body, {
+      type: 'object',
+      properties: {
+        name: { type: 'string', minLength: 1, default: 'Guest' },
+        customMessage: { type: 'string', required: true, minLength: 1 },
+      },
+    });
+
+    logger.info('Custom welcome message created', {
       name,
       customMessage,
     });
 
     return {
-      message: customMessage || `Welcome ${name || 'Guest'} to Singlet!`,
+      message: customMessage || `Welcome ${name} to Singlet!`,
       feature: 'welcome',
       type: 'custom',
       data: {
-        name: name || 'Guest',
-        customMessage: customMessage || null,
+        name: name,
+        customMessage: customMessage,
       },
       timestamp: new Date().toISOString(),
     };
   });
 
-  // GET /api/welcome/status - Welcome feature status
-  fastify.get('/status', async (request, reply) => {
-    featureLogger.debug('Welcome feature status requested');
+  voila.get('/status', async (request, reply) => {
+    logger.debug('Welcome feature status requested');
     return {
       feature: 'welcome',
       status: 'active',
@@ -71,6 +82,8 @@ async function welcomeRoutes(fastify, options) {
       timestamp: new Date().toISOString(),
     };
   });
+
+  logger.info('✅ Welcome routes initialized successfully');
 }
 
 export default welcomeRoutes;

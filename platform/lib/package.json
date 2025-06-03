@@ -1,0 +1,17 @@
+{
+  "name": "@platform/lib",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./validation": "./validation.js",
+    "./validation.js": "./validation.js",
+    "./config": "./config.js",
+    "./config.js": "./config.js",
+    "./logging": "./logging.js",
+    "./logging.js": "./logging.js",
+    "./error": "./error.js",
+    "./error.js": "./error.js"
+  }
+}

@@ -23,11 +23,11 @@
     "@fastify/cookie": "^11.0.2",
     "@fastify/cors": "^11.0.1",
     "@fastify/rate-limit": "^10.3.0",
-    "@voilajsx/appkit": "^1.0.5",
+    "@platform/lib": "file:./platform/lib",
+    "@voilajsx/appkit": "^1.0.7",
     "dotenv": "^16.5.0",
     "fastify": "^5.3.3",
-    "pino-pretty": "^10.3.1",
-    "@platform/lib": "file:./platform/lib"
+    "pino-pretty": "^10.3.1"
   },
   "engines": {
     "node": ">=18.0.0"

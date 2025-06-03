@@ -1,242 +1,266 @@
 /**
- * @fileoverview Main bootstrap module for @voilajsx/singlet framework
- * @description Handles server initialization, middleware setup, and lifecycle management
- * @author VoilaJS Team
+ * @fileoverview Singlet Framework - Core Implementation
+ * @description Server setup, configuration, and lifecycle management
  * @package @voilajsx/singlet
- * @version 1.0.0
  * @file /platform/app.js
  */
 
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
-import routes from './routes.js';
-
-// Import from centralized lib modules
+import { readdirSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { initConfig, getConfig } from './lib/config.js';
 import { initLogger, getLogger } from './lib/logging.js';
 import { errorHandler, notFoundHandler } from './lib/error.js';
+import { setupPlatformRoutes } from './routes.js';
 
-/**
- * @typedef {Object} ServerConfig
- * @property {number} port - Server port number
- * @property {string} host - Server host address
- * @property {string} environment - Current environment (development/production)
- */
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 let logger;
 let voilaInstance;
 
 /**
- * Bootstrap the Singlet framework application
- * Sets up configuration, logging, CORS, routes, and error handlers
- * @async
- * @function bootstrap
- * @throws {Error} When bootstrap configuration fails
- * @returns {Promise<void>}
+ * Setup application configuration
+ * @returns {Promise<Object>} Complete configuration object
  */
-async function bootstrap() {
-  try {
-    // 1. Initialize Configuration with auto-feature mapping
-    await initConfig();
+export async function setupConfig() {
+  await initConfig();
 
-    // 2. Initialize Logger with config integration
-    logger = initLogger();
-    logger.info('[Singlet] Bootstrap starting...');
-
-    // 3. Initialize Voila Framework
-    voilaInstance = Fastify({
-      logger: false, // Use our centralized logger instead
-    });
-
-    // 4. Add request/response logging hooks with favicon filtering
-    voilaInstance.addHook('onRequest', async (request, reply) => {
-      // Skip logging favicon and other browser noise
-      if (
-        request.url === '/favicon.ico' ||
-        request.url === '/robots.txt' ||
-        request.url === '/apple-touch-icon.png' ||
-        request.url === '/manifest.json'
-      ) {
-        return;
-      }
-
-      logger.info('[Singlet] Incoming request', {
-        method: request.method,
-        url: request.url,
-        remoteAddress: request.ip,
-      });
-    });
-
-    voilaInstance.addHook('onResponse', async (request, reply) => {
-      // Skip logging favicon and other browser noise
-      if (
-        request.url === '/favicon.ico' ||
-        request.url === '/robots.txt' ||
-        request.url === '/apple-touch-icon.png' ||
-        request.url === '/manifest.json'
-      ) {
-        return;
-      }
-
-      logger.info('[Singlet] Request completed', {
-        method: request.method,
-        url: request.url,
-        statusCode: reply.statusCode,
-        responseTime: reply.elapsedTime,
-      });
-    });
-
-    // 5. Register CORS middleware
-    await voilaInstance.register(cors, {
-      origin: true,
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization'],
-    });
-
-    // 6. Register application routes
-    await voilaInstance.register(routes);
-
-    // 7. Set up AppKit error handling AFTER routes
-    voilaInstance.setNotFoundHandler(notFoundHandler());
-    voilaInstance.setErrorHandler(errorHandler());
-
-    logger.info('[Singlet] Bootstrap completed successfully');
-  } catch (err) {
-    if (logger) {
-      logger.error('[Singlet] Bootstrap failed:', {
-        error: err.message,
-        stack: err.stack,
-        code: err.code,
-      });
-    } else {
-      console.error(
-        '❌ Singlet Framework bootstrap failed before logger initialization:',
-        err
-      );
-    }
-    throw err;
-  }
-}
-
-/**
- * Start the Singlet framework server
- * Initializes bootstrap and starts listening on configured port
- * @async
- * @function start
- * @returns {Promise<void>}
- * @throws {Error} When server startup fails
- */
-async function start() {
-  try {
-    await bootstrap();
-
-    // Get server configuration
-    const serverConfig = getConfig('server', {
-      port: 3000,
-      host: '0.0.0.0',
-    });
-    const appConfig = getConfig('app', {
+  const config = {
+    app: getConfig('app', {
       name: '@voilajsx/singlet-app',
       version: '1.0.0',
       environment: 'development',
-    });
+    }),
+    server: getConfig('server', { port: 3000, host: '0.0.0.0' }),
+    logging: getConfig('logging', { level: 'info' }),
+    security: getConfig('security', {}),
+    features: getConfig('features', {}),
+  };
 
-    const { port, host } = serverConfig;
+  // Singlet Framework banner - first thing users see
+  console.log(
+    `🚀 @voilajsx/singlet framework v${config.app.version} (${config.app.environment})`
+  );
+  console.log(`⚙️  Config loaded for ${config.app.environment}`);
 
-    await voilaInstance.listen({ port, host });
+  return config;
+}
 
-    logger.info('🚀 @voilajsx/singlet Framework Started:', {
-      url: `http://${host}:${port}`,
-      healthUrl: `http://${host}:${port}/health`,
-      apiInfoUrl: `http://${host}:${port}/api/info`,
-      environment: appConfig.environment,
-      frameworkVersion: appConfig.version,
-    });
-  } catch (err) {
-    if (logger) {
-      logger.error('[Singlet] Server startup failed:', {
-        error: err.message,
-        stack: err.stack,
-      });
-    } else {
-      console.error('❌ Singlet Framework server startup failed:', err);
+/**
+ * Initialize logging system
+ * @param {Object} config - Application configuration
+ * @returns {Object} Logger instance
+ */
+export function setupLogging(config) {
+  logger = initLogger();
+  return logger;
+}
+
+/**
+ * Create and configure Fastify server
+ * @param {Object} config - Application configuration
+ * @param {Object} logger - Logger instance
+ * @returns {Promise<Object>} Configured Fastify instance
+ */
+export async function createServer(config, logger) {
+  voilaInstance = Fastify({ logger: false });
+
+  // Request/response logging
+  const shouldSkipLog = (url) =>
+    [
+      '/favicon.ico',
+      '/robots.txt',
+      '/apple-touch-icon.png',
+      '/manifest.json',
+    ].includes(url);
+
+  voilaInstance.addHook('onRequest', async (request) => {
+    if (!shouldSkipLog(request.url)) {
+      logger.info(`→ ${request.method} ${request.url}`);
     }
-    throw err;
+  });
+
+  voilaInstance.addHook('onResponse', async (request, reply) => {
+    if (!shouldSkipLog(request.url)) {
+      logger.info(`← ${request.method} ${request.url} ${reply.statusCode}`);
+    }
+  });
+
+  // Register CORS middleware
+  await voilaInstance.register(cors, {
+    origin: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  });
+
+  return voilaInstance;
+}
+
+/**
+ * Register all application routes
+ * @param {Object} server - Fastify server instance
+ * @param {Object} config - Application configuration
+ * @param {Object} logger - Logger instance
+ */
+export async function setupRoutes(server, config, logger) {
+  // Platform routes
+  setupPlatformRoutes(server, config);
+
+  // Auto-discover backend features
+  await discoverFeatures(server, config, logger);
+
+  // Error handling (must be last)
+  server.setNotFoundHandler(notFoundHandler());
+  server.setErrorHandler(errorHandler());
+}
+
+/**
+ * Start the HTTP server
+ * @param {Object} server - Configured Fastify server instance
+ * @param {Object} config - Application configuration
+ * @param {Object} logger - Logger instance
+ */
+export async function startServer(server, config, logger) {
+  await server.listen(config.server);
+
+  logger.info(
+    `Server ready: http://${config.server.host}:${config.server.port} [health: /health, api: /api/info]`
+  );
+}
+
+/**
+ * Auto-discover and register backend features
+ * @param {Object} fastify - Fastify instance
+ * @param {Object} config - Application configuration
+ * @param {Object} logger - Logger instance
+ */
+async function discoverFeatures(fastify, config, logger) {
+  const backendPath = join(__dirname, '..', 'backend');
+
+  let featureDirs;
+  try {
+    featureDirs = readdirSync(backendPath, { withFileTypes: true })
+      .filter((d) => d.isDirectory())
+      .map((d) => d.name);
+  } catch (error) {
+    logger.warn(`Backend directory not found: ${backendPath}`);
+    return;
+  }
+
+  let successCount = 0;
+  let failureCount = 0;
+  const loadedFeatures = [];
+  const failedFeatures = [];
+
+  for (const dir of featureDirs) {
+    const featureKey = `features.${dir.toLowerCase()}`;
+    const enabled = getConfig(featureKey, true);
+
+    if (!enabled) {
+      logger.debug(`Feature ${dir}: disabled`);
+      continue;
+    }
+
+    const routeFile = join(backendPath, dir, 'src', `${dir}.routes.js`);
+
+    try {
+      const { default: featureRoutes } = await import(`file://${routeFile}`);
+
+      if (typeof featureRoutes !== 'function') {
+        logger.error(`❌ Feature ${dir}: routes.js must export a function`);
+        failedFeatures.push(dir);
+        failureCount++;
+        continue;
+      }
+
+      await fastify.register(featureRoutes, { prefix: `/api/${dir}` });
+      logger.info(`✅ Feature: ${dir} (/api/${dir})`);
+      loadedFeatures.push(dir);
+      successCount++;
+    } catch (err) {
+      logger.error(`❌ Feature ${dir}: ${err.message}`);
+      failedFeatures.push(dir);
+
+      // Environment-aware error handling
+      if (config.app.environment === 'development') {
+        logger.debug(`Error details: ${err.stack}`);
+        logger.debug(`File path: ${routeFile}`);
+        logger.error('🛑 Development mode: stopping for debugging');
+        process.exit(1);
+      }
+
+      failureCount++;
+    }
+  }
+
+  // Summary - useful for deployment verification
+  if (successCount > 0) {
+    logger.info(
+      `Features loaded: ${loadedFeatures.join(', ')} (${successCount} total)`
+    );
+  }
+
+  if (failureCount > 0) {
+    logger.warn(
+      `Features failed: ${failedFeatures.join(', ')} (${failureCount} total)`
+    );
   }
 }
 
 /**
- * Stop the Singlet framework server gracefully
- * Closes all connections and cleans up resources
- * @async
- * @function stop
- * @returns {Promise<void>}
- * @throws {Error} When shutdown process fails
+ * Graceful shutdown handler with proper error handling
  */
-async function stop() {
-  try {
-    if (logger) {
-      logger.info('🛑 Shutting down @voilajsx/singlet framework...');
-    } else {
-      console.log(
-        '\n🛑 Shutting down @voilajsx/singlet framework (logger not initialized)...'
-      );
-    }
+let shutdownInProgress = false;
 
-    // Close Voila instance
+async function gracefulShutdown(signal) {
+  // Prevent multiple shutdown handlers from running
+  if (shutdownInProgress) {
+    return;
+  }
+  shutdownInProgress = true;
+
+  logger?.info(`Shutting down Singlet (${signal})`);
+
+  try {
+    // Close Fastify server first
     if (voilaInstance) {
       await voilaInstance.close();
-      console.log('[Shutdown] Voila instance closed.');
     }
 
-    // Flush and close logger
+    // Close logger with timeout but don't show timeout errors
     if (logger) {
       try {
         await Promise.race([
           (async () => {
-            await logger.flush();
-            await logger.close();
+            await logger.flush?.();
+            await logger.close?.();
           })(),
           new Promise((_, reject) =>
-            setTimeout(
-              () => reject(new Error('Logger shutdown timed out')),
-              1000
-            )
+            setTimeout(() => reject(new Error('timeout')), 1000)
           ),
         ]);
-        console.log('[Shutdown] Logger closed successfully.');
-      } catch (loggerErr) {
-        console.warn(
-          `[Shutdown] Logger shutdown warning: ${loggerErr.message}`
-        );
+      } catch (err) {
+        // Silently ignore timeout errors during shutdown
+        if (err.message !== 'timeout') {
+          console.error('Logger shutdown error:', err.message);
+        }
       }
     }
 
-    if (logger) {
-      logger.info('✅ Singlet framework closed gracefully');
-    } else {
-      console.log('✅ Singlet framework closed gracefully');
-    }
+    console.log('✅ Singlet stopped gracefully');
   } catch (err) {
-    console.error('❌ Error during Singlet shutdown:', err);
+    console.error('❌ Shutdown error:', err.message);
   } finally {
     process.exit(0);
   }
 }
 
-/**
- * Handle process signals for graceful shutdown
- */
-process.on('SIGINT', async () => {
-  await stop();
-});
+// Register shutdown handlers only once
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
-process.on('SIGTERM', async () => {
-  await stop();
-});
-
-/**
- * Export Singlet framework functions, Voila instance, and logger getter
- * @exports
- */
-export { start, stop, voilaInstance as voila, getLogger };
+// Export utilities
+export { getLogger, voilaInstance as voila };

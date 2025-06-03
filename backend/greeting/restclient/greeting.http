@@ -18,6 +18,11 @@ GET {{greetingUrl}}/lang/spanish
 
 ###
 
+# not found language greeting
+GET {{greetingUrl}}/lang/span
+
+###
+
 # All greetings
 GET {{greetingUrl}}/all
 
@@ -28,7 +33,6 @@ POST {{greetingUrl}}/custom
 Content-Type: application/json
 
 {
-  "name": "Bob",
   "language": "french"
 }
 
@@ -36,3 +40,8 @@ Content-Type: application/json
 
 # Feature status
 GET {{greetingUrl}}/status
+
+###
+# Languages supported
+GET {{greetingUrl}}/languages
+###
