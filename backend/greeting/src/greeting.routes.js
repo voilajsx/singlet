@@ -1,24 +1,22 @@
 /**
- * @fileoverview Greeting feature routes for @voilajsx/singlet framework
- * @description Handles greeting-related API endpoints
- * @author VoilaJS Team
+ * @fileoverview Clean greeting routes with direct smart logging
+ * @description Perfect balance - clean imports, full power ✨
  * @package @voilajsx/singlet
- * @version 1.0.0
- * @file /backend/greeting/src/backend.routes.js
+ * @file /backend/greeting/src/greeting.routes.js
  */
 
-import { getAppLogger } from '@platform/lib/logger.js';
+import { getLogger } from '@platform/lib/logging.js';
+import { validate, notFound } from '@platform/lib/core.js';
 
 /**
- * Greeting feature routes
- * @param {import('fastify').FastifyInstance} fastify - Fastify instance
- * @param {object} options - Fastify plugin options
+ * Greeting feature routes - clean and powerful ✨
  */
-async function greetingRoutes(fastify, options) {
-  // Get the logger instance and create a child logger for this feature
-  const featureLogger = getAppLogger().child({ feature: 'greeting' });
+async function greetingRoutes(voila, options) {
+  // Smart logger - automatically creates child logger with feature context
+  const logger = getLogger('greeting');
 
-  // Sample greetings data
+  logger.warn('🎯 Initializing greeting routes...');
+
   const greetings = {
     english: 'Hello',
     spanish: 'Hola',
@@ -27,101 +25,94 @@ async function greetingRoutes(fastify, options) {
     italian: 'Ciao',
     portuguese: 'Olá',
     japanese: 'こんにちは',
-    korean: '안녕하세요',
+    chinese: '你好',
   };
 
-  // GET /api/greeting - Get random greeting
-  fastify.get('/', async (request, reply) => {
+  // Random greeting
+  voila.get('/', async (request, reply) => {
     const languages = Object.keys(greetings);
     const randomLang = languages[Math.floor(Math.random() * languages.length)];
-    featureLogger.info('Random greeting requested', { language: randomLang });
+
+    logger.info('Random greeting requested', { language: randomLang });
 
     return {
       greeting: greetings[randomLang],
       language: randomLang,
-      feature: 'greeting',
-      type: 'random',
       timestamp: new Date().toISOString(),
     };
   });
 
-  // GET /api/greeting/lang/:language - Get greeting by language
-  fastify.get('/lang/:language', async (request, reply) => {
+  // Specific language greeting
+  voila.get('/lang/:language', async (request, reply) => {
     const { language } = request.params;
+
+    logger.debug('Processing language request', {
+      requestedLanguage: language,
+    });
+
     const greeting = greetings[language.toLowerCase()];
 
     if (!greeting) {
-      featureLogger.warn(`Greeting for language '${language}' not found`);
-      reply.status(404);
-      return {
-        error: 'Language not found',
-        message: `Greeting for language '${language}' not available`,
+      logger.warn('Language not found', {
+        language,
         availableLanguages: Object.keys(greetings),
-        timestamp: new Date().toISOString(),
-      };
+      });
+      throw notFound(`Language '${language}' not available`);
     }
 
-    featureLogger.info(`Specific greeting requested for language: ${language}`);
+    logger.info('Specific greeting requested', { language });
+
     return {
       greeting,
       language: language.toLowerCase(),
-      feature: 'greeting',
-      type: 'specific',
       timestamp: new Date().toISOString(),
     };
   });
 
-  // GET /api/greeting/all - Get all available greetings
-  fastify.get('/all', async (request, reply) => {
-    featureLogger.debug('All greetings requested');
+  // All greetings
+  voila.get('/all', async (request, reply) => {
+    logger.error('All greetings requested');
+
     return {
       greetings,
-      feature: 'greeting',
-      type: 'collection',
       count: Object.keys(greetings).length,
       timestamp: new Date().toISOString(),
     };
   });
 
-  // POST /api/greeting/custom - Create custom greeting
-  fastify.post('/custom', async (request, reply) => {
-    const { name, language = 'english', message } = request.body || {};
-    const baseGreeting = greetings[language.toLowerCase()] || greetings.english;
-    featureLogger.info('Custom greeting created', {
-      name,
-      language,
-      customMessage: message,
+  // Custom greeting with validation
+  voila.post('/custom', async (request, reply) => {
+    logger.debug('Processing custom greeting request', {
+      bodyKeys: Object.keys(request.body || {}),
     });
 
+    const { name, language = 'english' } = validate(request.body, {
+      name: 'required|string|min:1',
+      language: 'string',
+    });
+
+    const baseGreeting = greetings[language.toLowerCase()] || greetings.english;
+
+    logger.info('Custom greeting created', { name, language });
+
     return {
-      greeting: message || `${baseGreeting}, ${name || 'Friend'}!`,
-      customMessage: message || null,
-      name: name || 'Friend',
+      greeting: `${baseGreeting}, ${name}!`,
+      name,
       language: language.toLowerCase(),
-      feature: 'greeting',
-      type: 'custom',
       timestamp: new Date().toISOString(),
     };
   });
 
-  // GET /api/greeting/status - Greeting feature status
-  fastify.get('/status', async (request, reply) => {
-    featureLogger.debug('Greeting feature status requested');
+  // Available languages
+  voila.get('/languages', async (request, reply) => {
     return {
-      feature: 'greeting',
-      status: 'active',
-      version: '1.0.0',
-      supportedLanguages: Object.keys(greetings),
-      endpoints: [
-        'GET /',
-        'GET /lang/:language',
-        'GET /all',
-        'POST /custom',
-        'GET /status',
-      ],
+      languages: Object.keys(greetings),
+      count: Object.keys(greetings).length,
       timestamp: new Date().toISOString(),
     };
   });
+
+  logger.info('✅ Greeting routes initialized successfully');
 }
 
 export default greetingRoutes;

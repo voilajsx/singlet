@@ -1,15 +1,20 @@
 {
   "compilerOptions": {
-    "baseUrl": ".", // This sets the base directory for resolving modules
+    "baseUrl": ".",
     "paths": {
-      "@platform/*": ["./platform/*"] // Maps @platform/ to the platform/ directory
+      "@platform/*": ["./platform/*"],
+      "@platform/lib/*": ["./platform/lib/*"]
     },
-    "module": "NodeNext", // Ensure modern module resolution for Node.js
+    "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "target": "ESNext",
-    "checkJs": true, // Enable type checking for JavaScript files
-    "noEmit": true // Don't emit any output files (used for type checking only)
+    "checkJs": true,
+    "noEmit": true,
+    "allowSyntheticDefaultImports": true
   },
-  "include": ["**/*"], // Include all files in the project
-  "exclude": ["node_modules", "**/node_modules/*", "dist"] // Exclude these directories
+  "include": ["**/*"],
+  "exclude": ["node_modules", "**/node_modules/*", "dist"],
+  "typeAcquisition": {
+    "enable": false
+  }
 }

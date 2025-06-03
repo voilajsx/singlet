@@ -1,20 +1,30 @@
 /**
- * @fileoverview Defines the application's configuration schema and environment variable mapping.
- * @description Centralized configuration definition for @voilajsx/singlet-app.
+ * @fileoverview Defines the application's configuration schema and environment variable mapping
+ * @description Centralized configuration definition for @voilajsx/singlet framework
+ * @package @voilajsx/singlet
+ * @file /platform/app.config.js
  */
 
-// Define schema for validation
-// IMPORTANT: 'app', 'server', 'logging' are NOT in the top-level 'required' array
-// This allows them to be built from mapped environment variables by loadConfig.
+/**
+ * Configuration schema for validation and type coercion
+ * Defines the structure and defaults for the entire application
+ */
 export const configSchema = {
   type: 'object',
+  required: ['app', 'server', 'logging'],
   properties: {
     app: {
       type: 'object',
       required: ['name', 'version', 'environment'],
       properties: {
-        name: { type: 'string', default: '@voilajsx/singletapp' },
-        version: { type: 'string', default: '1.0.0' },
+        name: {
+          type: 'string',
+          default: '@voilajsx/singlet-app',
+        },
+        version: {
+          type: 'string',
+          default: '1.0.0',
+        },
         environment: {
           type: 'string',
           enum: ['development', 'staging', 'production'],
@@ -26,14 +36,29 @@ export const configSchema = {
       type: 'object',
       required: ['port', 'host'],
       properties: {
-        host: { type: 'string', default: '0.0.0.0' },
-        port: { type: 'string', default: '3000' },
+        host: {
+          type: 'string',
+          default: '0.0.0.0',
+        },
+        port: {
+          type: 'number',
+          default: 3000,
+        },
         ssl: {
           type: 'object',
           properties: {
-            enabled: { type: 'string', default: 'false' },
-            key: { type: 'string' },
-            cert: { type: 'string' },
+            enabled: {
+              type: 'boolean',
+              default: false,
+            },
+            key: {
+              type: ['string', 'null'],
+              default: null,
+            },
+            cert: {
+              type: ['string', 'null'],
+              default: null,
+            },
           },
         },
       },
@@ -46,40 +71,69 @@ export const configSchema = {
           enum: ['error', 'warn', 'info', 'debug'],
           default: 'info',
         },
-        enableFileLogging: { type: 'string', default: 'true' },
-        dirname: { type: 'string', default: 'logs' },
-        filename: { type: 'string', default: 'app.log' },
-        retentionDays: { type: 'string', default: '5' },
-        maxSize: { type: 'string', default: '10485760' },
+        enableFileLogging: {
+          type: 'boolean',
+          default: true,
+        },
+        dirname: {
+          type: 'string',
+          default: 'platform/logs',
+        },
+        filename: {
+          type: 'string',
+          default: 'app.log',
+        },
+        retentionDays: {
+          type: 'number',
+          default: 5,
+        },
+        maxSize: {
+          type: 'number',
+          default: 10485760,
+        },
+      },
+    },
+    security: {
+      type: 'object',
+      properties: {
+        jwtSecret: {
+          type: 'string',
+          default: 'singlet-dev-secret-change-in-production',
+        },
+        sessionSecret: {
+          type: 'string',
+          default: 'singlet-session-secret-change-in-production',
+        },
       },
     },
     features: {
       type: 'object',
-      patternProperties: {
-        '^FEATURE_.*$': { type: 'string' },
+      properties: {
+        welcome: { type: 'boolean', default: true },
+        greeting: { type: 'boolean', default: true },
       },
-      additionalProperties: { type: 'string' },
+      additionalProperties: {
+        type: 'boolean',
+      },
     },
   },
 };
 
-// Define environment variable map
+/**
+ * Environment variable mapping is now handled automatically by @voilajsx/appkit
+ *
+ * Mapping rules:
+ * - SERVER_PORT → server.port
+ * - SERVER_HOST → server.host
+ * - LOG_LEVEL → logging.level
+ * - FEATURES_WELCOME → features.welcome
+ * - FEATURES_GREETING → features.greeting
+ * - JWT_SECRET → security.jwtSecret
+ * - SESSION_SECRET → security.sessionSecret
+ *
+ * Rule: UPPER_SNAKE_CASE → lower.dot.notation
+ */
 export const envMap = {
-  APP_NAME: 'app.name',
-  APP_VERSION: 'app.version',
-  NODE_ENV: 'app.environment',
-  PORT: 'server.port',
-  HOST: 'server.host',
-  SERVER_SSL_ENABLED: 'server.ssl.enabled',
-  SERVER_SSL_KEY: 'server.ssl.key',
-  SERVER_SSL_CERT: 'server.ssl.cert',
-  LOG_LEVEL: 'logging.level',
-  LOG_ENABLE_FILE_LOGGING: 'logging.enableFileLogging',
-  LOG_DIR: 'logging.dirname',
-  LOG_FILENAME: 'logging.filename',
-  LOG_RETENTION_DAYS: 'logging.retentionDays',
-  LOG_MAX_SIZE: 'logging.maxSize',
-  FEATURE_WELCOME: 'features.welcome',
-  FEATURE_GREETING: 'features.greeting',
-  FEATURE_DEBUGTOLBAR: 'features.debugToolbar',
+  // Note: This is now optional since appkit handles automatic mapping
+  // But we can keep explicit mappings for documentation
 };
