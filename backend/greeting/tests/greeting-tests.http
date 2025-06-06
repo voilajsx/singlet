@@ -1,0 +1,164 @@
+# ====================================
+# Greeting Feature API Tests
+# File: /backend/greeting/restclient/greeting.http
+# ====================================
+
+@baseUrl = http://localhost:3000
+@greetingUrl = {{baseUrl}}/api/greeting
+
+# Test users (password: password123)
+# admin@example.com - Admin user
+# user@example.com - Regular user
+
+### Authentication Setup
+
+# Login as admin
+# @name adminLogin
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@example.com",
+  "password": "password123"
+}
+
+###
+
+# Login as user
+# @name userLogin
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "user@example.com", 
+  "password": "password123"
+}
+
+###
+
+### Public Routes (No Auth Required)
+
+# Random greeting
+GET {{greetingUrl}}/
+
+###
+
+# Spanish greeting
+GET {{greetingUrl}}/lang/spanish
+
+###
+
+# Not found language greeting
+GET {{greetingUrl}}/lang/span
+
+###
+
+# All greetings
+GET {{greetingUrl}}/all
+
+###
+
+# Languages supported
+GET {{greetingUrl}}/languages
+
+###
+
+### Authenticated Routes (Requires Login)
+
+# Custom greeting - without auth (should fail)
+POST {{greetingUrl}}/custom
+Content-Type: application/json
+
+{
+  "message": "Hello world"
+}
+
+###
+
+# Custom greeting - with user auth
+POST {{greetingUrl}}/custom
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJhZG1pbl8xIiwiZW1haWwiOiJhZG1pbkBleGFtcGxlLmNvbSIsIm5hbWUiOiJBZG1pbiBVc2VyIiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzQ5MTEwNTQxLCJleHAiOjE3NDk3MTUzNDF9.DOhOexcNCK47uPnUHZowsCULtobEvoSDJ36FPUIZUZk
+Content-Type: application/json
+
+{
+  "message": "Hello world"
+}
+
+###
+
+# Personal greeting - with user auth
+GET {{greetingUrl}}/personal
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJhZG1pbl8xIiwiZW1haWwiOiJhZG1pbkBleGFtcGxlLmNvbSIsIm5hbWUiOiJBZG1pbiBVc2VyIiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzQ5MTEwNTQxLCJleHAiOjE3NDk3MTUzNDF9.DOhOexcNCK47uPnUHZowsCULtobEvoSDJ36FPUIZUZk
+
+###
+
+# Personal greeting - with admin auth
+GET {{greetingUrl}}/personal
+Authorization: Bearer {{adminLogin.response.body.token}}
+
+###
+
+### Admin Routes (Requires Admin Role)
+
+# Admin add greeting - without auth (should fail)
+POST {{greetingUrl}}/admin/add
+Content-Type: application/json
+
+{
+  "message": "New admin greeting"
+}
+
+###
+
+# Admin add greeting - with user auth (should fail)
+POST {{greetingUrl}}/admin/add
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJhZG1pbl8xIiwiZW1haWwiOiJhZG1pbkBleGFtcGxlLmNvbSIsIm5hbWUiOiJBZG1pbiBVc2VyIiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzQ5MTEwNTQxLCJleHAiOjE3NDk3MTUzNDF9.DOhOexcNCK47uPnUHZowsCULtobEvoSDJ36FPUIZUZk
+Content-Type: application/json
+
+{
+  "message": "New admin greeting"
+}
+
+###
+
+# Admin add greeting - with admin auth (should succeed)
+POST {{greetingUrl}}/admin/add
+Authorization: Bearer {{adminLogin.response.body.token}}
+Content-Type: application/json
+
+{
+  "message": "New admin greeting"
+}
+
+###
+
+# Admin stats - with admin auth
+GET {{greetingUrl}}/admin/stats
+Authorization: Bearer {{adminLogin.response.body.token}}
+
+###
+
+# Admin stats - with user auth (should fail)
+GET {{greetingUrl}}/admin/stats
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJhZG1pbl8xIiwiZW1haWwiOiJhZG1pbkBleGFtcGxlLmNvbSIsIm5hbWUiOiJBZG1pbiBVc2VyIiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzQ5MTExNDEwLCJleHAiOjE3NDk3MTYyMTB9.qf0r1UfOReUbT71oL7-iaCd8WzMjP97HrR7TAJ_hFZs
+
+###
+
+### Test Invalid Tokens
+
+# Custom greeting - with invalid token
+POST {{greetingUrl}}/custom
+Authorization: Bearer invalid-token-here
+Content-Type: application/json
+
+{
+  "message": "Hello world"
+}
+
+###
+
+# Personal greeting - with expired/invalid token
+GET {{greetingUrl}}/personal
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.invalid
+
+###

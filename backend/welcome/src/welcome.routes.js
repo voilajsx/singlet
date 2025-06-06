@@ -9,7 +9,6 @@
 
 import { validateRequest } from '@platform/lib/validation.js';
 import { getLogger } from '@platform/lib/logging.js';
-import { notFoundError } from '@platform/lib/error.js';
 
 /**
  * Welcome feature routes.
@@ -21,13 +20,21 @@ async function welcomeRoutes(voila) {
   logger.info('🎯 Initializing welcome routes...');
 
   voila.get('/', async (request, reply) => {
-    logger.info('Welcome root endpoint hit');
-    return {
-      message: 'Welcome to Singlet Framework!',
-      feature: 'welcome',
-      description: 'This is the welcome feature endpoint',
-      timestamp: new Date().toISOString(),
-    };
+    try {
+      logger.info('Welcome root endpoint hit');
+      return {
+        message: 'Welcome to Singlet Framework!',
+        feature: 'welcome',
+        description: 'This is the welcome feature endpoint',
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error) {
+      logger.error(`Error in welcome root endpoint: ${error.message}`);
+      return reply.status(500).send({
+        error: 'Internal Server Error',
+        message: 'An error occurred processing your request',
+      });
+    }
   });
 
   voila.get('/user/:name', async (request, reply) => {

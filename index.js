@@ -27,12 +27,15 @@ try {
   // Create Fastify server with middleware
   const server = await createServer(config, logger);
 
-  // Register core routes and discover features
+  // Register core routes and discover components
   await setupRoutes(server, config, logger);
 
   // Start listening for requests
   await startServer(server, config, logger);
+
+  console.log('✨ Singlet Framework is ready to serve requests');
 } catch (error) {
   console.error('Startup failed:', error.message);
+  console.error(error.stack);
   process.exit(1);
 }

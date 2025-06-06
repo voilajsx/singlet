@@ -10,3 +10,5 @@ export * from './logging.js';
 export * from './validation.js';
 export * from './error.js';
 export * from './config.js';
+export * from './security.js';
+export * from './auth.js';

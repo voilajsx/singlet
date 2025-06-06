@@ -1,0 +1,26 @@
+###
+# Platform Core API Test Suite
+# Singlet Framework - REST Client Tests
+# Base URL: http://localhost:3000
+###
+
+# Variables
+@baseUrl = http://localhost:3000
+@gatePrefix = /api/core
+
+
+### Core Platform App - Root Endpoint
+GET {{baseUrl}}/api/core/
+Content-Type: application/json
+
+### Core Platform App - Health Check
+GET {{baseUrl}}/api/core/health
+Content-Type: application/json
+
+### Core Platform App - Application Information
+GET {{baseUrl}}/api/core/info
+Content-Type: application/json
+
+### Core Platform App - Feature Flags
+GET {{baseUrl}}/api/core/features
+Content-Type: application/json

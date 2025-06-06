@@ -4,6 +4,10 @@
   "description": "Singlet Framework - Simple, Maintainable, Extendable and Scalable",
   "type": "module",
   "main": "index.js",
+  "workspaces": [
+    "frontend/*",
+    "platform/apps/**/frontend/*"
+  ],
   "scripts": {
     "start": "node index.js",
     "dev": "node --watch index.js",
@@ -17,22 +21,38 @@
     "voilajsx",
     "singlet"
   ],
+  "packageManager": "npm@10.5.0",
   "author": "VoilaJS Team",
   "license": "MIT",
   "dependencies": {
     "@fastify/cookie": "^11.0.2",
     "@fastify/cors": "^11.0.1",
+    "@fastify/http-proxy": "^11.1.2",
     "@fastify/rate-limit": "^10.3.0",
+    "@fastify/static": "^8.2.0",
     "@platform/lib": "file:./platform/lib",
+    "@tailwindcss/cli": "^4.1.8",
+    "@tailwindcss/vite": "^4.1.8",
     "@voilajsx/appkit": "^1.0.7",
+    "bcryptjs": "^3.0.2",
     "dotenv": "^16.5.0",
     "fastify": "^5.3.3",
+    "jsonwebtoken": "^9.0.2",
     "pino-pretty": "^10.3.1"
   },
   "engines": {
     "node": ">=18.0.0"
   },
   "devDependencies": {
+    "@types/react": "19.1.6",
+    "@types/react-dom": "19.1.6",
+    "@vitejs/plugin-react": "4.5.1",
+    "autoprefixer": "10.4.21",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "tailwindcss": "^4.1.8",
+    "turbo": "^2.5.4",
+    "vite": "6.3.5",
     "vitest": "^3.1.4"
   }
 }

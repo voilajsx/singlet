@@ -1,6 +1,7 @@
 /**
  * @fileoverview Vitest tests for Welcome feature
- * @description Tests for /backend/welcome/src/welcome.route.js
+ * @description Tests for /backend/welcome/src/welcome.routes.js
+ * @package @voilajsx/singlet
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -30,13 +31,14 @@ describe('Welcome Feature Tests', () => {
       expect(response.statusCode).toBe(200);
       const payload = JSON.parse(response.payload);
 
-      expect(payload).toHaveProperty(
-        'message',
-        'Welcome to Singlet Framework!'
-      );
-      expect(payload).toHaveProperty('feature', 'welcome');
-      expect(payload).toHaveProperty('description');
-      expect(payload).toHaveProperty('timestamp');
+      expect(payload).toEqual({
+        message: 'Welcome to Singlet Framework!',
+        feature: 'welcome',
+        description: 'This is the welcome feature endpoint',
+        timestamp: expect.stringMatching(
+          /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z$/
+        ),
+      });
     });
   });
 
@@ -50,21 +52,15 @@ describe('Welcome Feature Tests', () => {
       expect(response.statusCode).toBe(200);
       const payload = JSON.parse(response.payload);
 
-      expect(payload.message).toBe('Welcome John to Singlet Framework!');
-      expect(payload.feature).toBe('welcome');
-      expect(payload.user).toBe('John');
-      expect(payload.personalizedGreeting).toBe(true);
-    });
-
-    it('should handle special characters in name', async () => {
-      const response = await app.inject({
-        method: 'GET',
-        url: '/api/welcome/user/José',
+      expect(payload).toEqual({
+        message: 'Welcome John to Singlet Framework!',
+        feature: 'welcome',
+        user: 'John',
+        personalizedGreeting: true,
+        timestamp: expect.stringMatching(
+          /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z$/
+        ),
       });
-
-      expect(response.statusCode).toBe(200);
-      const payload = JSON.parse(response.payload);
-      expect(payload.user).toBe('José');
     });
   });
 
@@ -82,25 +78,47 @@ describe('Welcome Feature Tests', () => {
       expect(response.statusCode).toBe(200);
       const payload = JSON.parse(response.payload);
 
-      expect(payload.message).toBe('Welcome to our platform!');
-      expect(payload.feature).toBe('welcome');
-      expect(payload.type).toBe('custom');
-      expect(payload.data.name).toBe('Alice');
+      expect(payload).toEqual({
+        message: 'Welcome to our platform!',
+        feature: 'welcome',
+        type: 'custom',
+        data: {
+          name: 'Alice',
+          customMessage: 'Welcome to our platform!',
+        },
+        timestamp: expect.stringMatching(
+          /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z$/
+        ),
+      });
     });
 
-    it('should handle empty request body', async () => {
+    it('should use default name when only customMessage provided', async () => {
       const response = await app.inject({
         method: 'POST',
         url: '/api/welcome/message',
-        payload: {},
+        payload: {
+          customMessage: 'Hello, world!',
+        },
       });
 
       expect(response.statusCode).toBe(200);
       const payload = JSON.parse(response.payload);
-      expect(payload.data.name).toBe('Guest');
+
+      expect(payload).toEqual({
+        message: 'Hello, world!',
+        feature: 'welcome',
+        type: 'custom',
+        data: {
+          name: 'Guest',
+          customMessage: 'Hello, world!',
+        },
+        timestamp: expect.stringMatching(
+          /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z$/
+        ),
+      });
     });
 
-    it('should handle name only', async () => {
+    it('should return 400 for missing customMessage', async () => {
       const response = await app.inject({
         method: 'POST',
         url: '/api/welcome/message',
@@ -109,9 +127,56 @@ describe('Welcome Feature Tests', () => {
         },
       });
 
-      expect(response.statusCode).toBe(200);
+      expect(response.statusCode).toBe(400);
       const payload = JSON.parse(response.payload);
-      expect(payload.message).toBe('Welcome Bob to Singlet!');
+
+      expect(payload).toEqual({
+        error: 'VALIDATION_ERROR',
+        message: 'Validation failed',
+        details: {
+          framework: '@voilajsx/singlet',
+          validationErrors: [
+            {
+              path: 'customMessage',
+              message: 'Field is required',
+            },
+          ],
+        },
+        timestamp: expect.stringMatching(
+          /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z$/
+        ),
+      });
+    });
+
+    it('should return 400 for invalid customMessage type', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/welcome/message',
+        payload: {
+          name: 'Bob',
+          customMessage: 123,
+        },
+      });
+
+      expect(response.statusCode).toBe(400);
+      const payload = JSON.parse(response.payload);
+
+      expect(payload).toEqual({
+        error: 'VALIDATION_ERROR',
+        message: 'Validation failed',
+        details: {
+          framework: '@voilajsx/singlet',
+          validationErrors: [
+            {
+              path: 'customMessage',
+              message: 'Field must be at least 1 characters',
+            },
+          ],
+        },
+        timestamp: expect.stringMatching(
+          /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z$/
+        ),
+      });
     });
   });
 
@@ -125,22 +190,35 @@ describe('Welcome Feature Tests', () => {
       expect(response.statusCode).toBe(200);
       const payload = JSON.parse(response.payload);
 
-      expect(payload.feature).toBe('welcome');
-      expect(payload.status).toBe('active');
-      expect(payload.version).toBe('1.0.0');
-      expect(payload.endpoints).toBeInstanceOf(Array);
-      expect(payload.endpoints).toHaveLength(4);
+      expect(payload).toEqual({
+        feature: 'welcome',
+        status: 'active',
+        version: '1.0.0',
+        endpoints: ['GET /', 'GET /user/:name', 'POST /message', 'GET /status'],
+        timestamp: expect.stringMatching(
+          /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z$/
+        ),
+      });
     });
   });
 
   describe('Error handling', () => {
-    it('should handle non-existent routes', async () => {
+    it('should return 404 for non-existent routes', async () => {
       const response = await app.inject({
         method: 'GET',
         url: '/api/welcome/nonexistent',
       });
 
       expect(response.statusCode).toBe(404);
+      const payload = JSON.parse(response.payload);
+
+      expect(payload).toEqual({
+        error: 'NOT_FOUND',
+        message: 'Route /api/welcome/nonexistent not found',
+        timestamp: expect.stringMatching(
+          /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z$/
+        ),
+      });
     });
   });
 });

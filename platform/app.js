@@ -7,13 +7,12 @@
 
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
-import { readdirSync } from 'fs';
-import { join, dirname } from 'path';
+import cookie from '@fastify/cookie';
+import { dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { initConfig, getConfig } from './lib/config.js';
 import { initLogger, getLogger } from './lib/logging.js';
-import { errorHandler, notFoundHandler } from './lib/error.js';
-import { setupPlatformRoutes } from './routes.js';
+import { setupComponents, getDiscoveredComponents } from './discovery.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -36,11 +35,11 @@ export async function setupConfig() {
     }),
     server: getConfig('server', { port: 3000, host: '0.0.0.0' }),
     logging: getConfig('logging', { level: 'info' }),
-    security: getConfig('security', {}),
+    jwt: getConfig('jwt', {}),
+    apps: getConfig('apps', { system: true }),
     features: getConfig('features', {}),
   };
 
-  // Singlet Framework banner - first thing users see
   console.log(
     `🚀 @voilajsx/singlet framework v${config.app.version} (${config.app.environment})`
   );
@@ -68,7 +67,6 @@ export function setupLogging(config) {
 export async function createServer(config, logger) {
   voilaInstance = Fastify({ logger: false });
 
-  // Request/response logging
   const shouldSkipLog = (url) =>
     [
       '/favicon.ico',
@@ -89,32 +87,80 @@ export async function createServer(config, logger) {
     }
   });
 
-  // Register CORS middleware
+  // Smart CORS configuration based on environment
+  const environment = config.app.environment;
+  const isDevelopment = environment === 'development';
+  const isProduction = environment === 'production';
+
+  let corsOrigins;
+  if (isDevelopment) {
+    // Development: Allow common local dev origins
+    corsOrigins = [
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'http://localhost:5173', // Vite
+      'http://localhost:8080', // Vue CLI
+      'capacitor://localhost', // Capacitor mobile apps
+      'http://localhost', // Generic localhost
+    ];
+  } else if (isProduction) {
+    // Production: Must be explicitly configured via environment
+    const envOrigins = process.env.CORS_ORIGINS;
+    if (envOrigins) {
+      corsOrigins = envOrigins.split(',').map((origin) => origin.trim());
+    } else {
+      // Default to false for security - origins must be explicitly set in production
+      corsOrigins = false;
+      logger.warn(
+        '⚠️  CORS_ORIGINS not set in production - CORS disabled for security'
+      );
+    }
+  } else {
+    // Staging: Allow configuration via env or use development defaults
+    const envOrigins = process.env.CORS_ORIGINS;
+    corsOrigins = envOrigins
+      ? envOrigins.split(',').map((origin) => origin.trim())
+      : ['http://localhost:3000', 'http://localhost:3001'];
+  }
+
+  // Register CORS plugin
   await voilaInstance.register(cors, {
-    origin: true,
+    origin: corsOrigins,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    credentials: true, // Enable cookies and authorization headers
   });
+
+  // Register Cookie plugin with secure configuration
+  await voilaInstance.register(cookie, {
+    secret: getConfig('jwt.secret', 'singlet-dev-secret-change-in-production'),
+    hook: 'onRequest', // Parse cookies early
+    parseOptions: {
+      secure: isProduction, // Only secure cookies in production
+      httpOnly: true,
+      sameSite: isProduction ? 'none' : 'lax', // More permissive in dev
+    },
+  });
+
+  logger.info('✅ Fastify plugins registered (CORS, Cookies)');
+  logger.info(
+    `🌐 CORS origins: ${
+      Array.isArray(corsOrigins) ? corsOrigins.join(', ') : corsOrigins
+    }`
+  );
 
   return voilaInstance;
 }
 
 /**
- * Register all application routes
+ * Register all application routes and components
  * @param {Object} server - Fastify server instance
  * @param {Object} config - Application configuration
  * @param {Object} logger - Logger instance
  */
 export async function setupRoutes(server, config, logger) {
-  // Platform routes
-  setupPlatformRoutes(server, config);
-
-  // Auto-discover backend features
-  await discoverFeatures(server, config, logger);
-
-  // Error handling (must be last)
-  server.setNotFoundHandler(notFoundHandler());
-  server.setErrorHandler(errorHandler());
+  // Use the discovery module to set up all components
+  await setupComponents(server, config, logger);
 }
 
 /**
@@ -126,97 +172,40 @@ export async function setupRoutes(server, config, logger) {
 export async function startServer(server, config, logger) {
   await server.listen(config.server);
 
+  const {
+    platformAppsBackend,
+    platformAppsFrontend,
+    featureBackend,
+    featureFrontend,
+  } = getDiscoveredComponents();
+
   logger.info(
-    `Server ready: http://${config.server.host}:${config.server.port} [health: /health, api: /api/info]`
+    `Server ready: http://${config.server.host}:${config.server.port}`
   );
-}
 
-/**
- * Auto-discover and register backend features
- * @param {Object} fastify - Fastify instance
- * @param {Object} config - Application configuration
- * @param {Object} logger - Logger instance
- */
-async function discoverFeatures(fastify, config, logger) {
-  const backendPath = join(__dirname, '..', 'backend');
-
-  let featureDirs;
-  try {
-    featureDirs = readdirSync(backendPath, { withFileTypes: true })
-      .filter((d) => d.isDirectory())
-      .map((d) => d.name);
-  } catch (error) {
-    logger.warn(`Backend directory not found: ${backendPath}`);
-    return;
+  // Log discovered components summary
+  if (platformAppsBackend.size > 0) {
+    const appsList = Array.from(platformAppsBackend.keys()).join(', ');
+    logger.info(`Platform apps active: ${appsList}`);
   }
 
-  let successCount = 0;
-  let failureCount = 0;
-  const loadedFeatures = [];
-  const failedFeatures = [];
-
-  for (const dir of featureDirs) {
-    const featureKey = `features.${dir.toLowerCase()}`;
-    const enabled = getConfig(featureKey, true);
-
-    if (!enabled) {
-      logger.debug(`Feature ${dir}: disabled`);
-      continue;
-    }
-
-    const routeFile = join(backendPath, dir, 'src', `${dir}.routes.js`);
-
-    try {
-      const { default: featureRoutes } = await import(`file://${routeFile}`);
-
-      if (typeof featureRoutes !== 'function') {
-        logger.error(`❌ Feature ${dir}: routes.js must export a function`);
-        failedFeatures.push(dir);
-        failureCount++;
-        continue;
-      }
-
-      await fastify.register(featureRoutes, { prefix: `/api/${dir}` });
-      logger.info(`✅ Feature: ${dir} (/api/${dir})`);
-      loadedFeatures.push(dir);
-      successCount++;
-    } catch (err) {
-      logger.error(`❌ Feature ${dir}: ${err.message}`);
-      failedFeatures.push(dir);
-
-      // Environment-aware error handling
-      if (config.app.environment === 'development') {
-        logger.debug(`Error details: ${err.stack}`);
-        logger.debug(`File path: ${routeFile}`);
-        logger.error('🛑 Development mode: stopping for debugging');
-        process.exit(1);
-      }
-
-      failureCount++;
-    }
+  if (featureBackend.size > 0) {
+    const featuresList = Array.from(featureBackend.keys()).join(', ');
+    logger.info(`Features active: ${featuresList}`);
   }
 
-  // Summary - useful for deployment verification
-  if (successCount > 0) {
-    logger.info(
-      `Features loaded: ${loadedFeatures.join(', ')} (${successCount} total)`
-    );
-  }
-
-  if (failureCount > 0) {
-    logger.warn(
-      `Features failed: ${failedFeatures.join(', ')} (${failureCount} total)`
-    );
+  if (platformAppsFrontend.size > 0 || featureFrontend.size > 0) {
+    const frontendCount = platformAppsFrontend.size + featureFrontend.size;
+    logger.info(`Frontend applications: ${frontendCount} active`);
   }
 }
 
 /**
- * Graceful shutdown handler with proper error handling
+ * Graceful shutdown handler
  */
 let shutdownInProgress = false;
 
 async function gracefulShutdown(signal) {
-  // Prevent multiple shutdown handlers from running
   if (shutdownInProgress) {
     return;
   }
@@ -225,12 +214,10 @@ async function gracefulShutdown(signal) {
   logger?.info(`Shutting down Singlet (${signal})`);
 
   try {
-    // Close Fastify server first
     if (voilaInstance) {
       await voilaInstance.close();
     }
 
-    // Close logger with timeout but don't show timeout errors
     if (logger) {
       try {
         await Promise.race([
@@ -243,7 +230,6 @@ async function gracefulShutdown(signal) {
           ),
         ]);
       } catch (err) {
-        // Silently ignore timeout errors during shutdown
         if (err.message !== 'timeout') {
           console.error('Logger shutdown error:', err.message);
         }
@@ -258,9 +244,7 @@ async function gracefulShutdown(signal) {
   }
 }
 
-// Register shutdown handlers only once
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
-// Export utilities
 export { getLogger, voilaInstance as voila };

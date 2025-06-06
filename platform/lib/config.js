@@ -12,33 +12,7 @@ import {
   createConfigSchema,
   validateConfigSchema,
 } from '@voilajsx/appkit/config';
-import { configSchema, envMap } from '../app.config.js';
-
-// Smart defaults for Singlet
-const defaults = {
-  app: {
-    name: '@voilajsx/singlet-app',
-    version: '1.0.0',
-    environment: 'development',
-  },
-  server: {
-    port: 3000,
-    host: '0.0.0.0',
-    ssl: { enabled: false, key: null, cert: null },
-  },
-  logging: {
-    level: 'info',
-    enableFileLogging: true,
-    dirname: 'platform/logs',
-    filename: 'app.log',
-    retentionDays: 5,
-    maxSize: 10485760,
-  },
-  features: {
-    welcome: true,
-    greeting: true,
-  },
-};
+import { configSchema } from '../app.config.js';
 
 let appConfig = null;
 
@@ -54,7 +28,7 @@ export {
 } from '@voilajsx/appkit/config';
 
 /**
- * Initialize configuration with Singlet defaults
+ * Initialize configuration with Singlet schema
  * @returns {Promise<Object>} Loaded configuration
  * @throws {Error} If config loading fails
  */
@@ -79,11 +53,15 @@ export async function initConfig() {
     }
 
     // Load configuration using appkit/config with automatic env mapping
-    appConfig = await loadConfig(defaults, {
-      validate: true,
-      schema: 'singlet',
-      env: true, // Auto-maps UPPER_SNAKE_CASE → lower.dot.notation
-    });
+    // Defaults come from the schema in app.config.js
+    appConfig = await loadConfig(
+      {},
+      {
+        validate: true,
+        schema: 'singlet',
+        env: true, // Auto-maps UPPER_SNAKE_CASE → lower.dot.notation
+      }
+    );
 
     return appConfig;
   } catch (error) {
@@ -123,30 +101,6 @@ export function has(path) {
   }
 
   return hasConfig(path);
-}
-
-/**
- * Get logging-specific configuration
- * @returns {Object} Logging configuration
- */
-export function getLogging() {
-  return get('logging', defaults.logging);
-}
-
-/**
- * Get app-specific configuration
- * @returns {Object} App configuration
- */
-export function getApp() {
-  return get('app', defaults.app);
-}
-
-/**
- * Get server-specific configuration
- * @returns {Object} Server configuration
- */
-export function getServer() {
-  return get('server', defaults.server);
 }
 
 /**

@@ -12,6 +12,10 @@
     "./logging": "./logging.js",
     "./logging.js": "./logging.js",
     "./error": "./error.js",
-    "./error.js": "./error.js"
+    "./error.js": "./error.js",
+    "./security": "./security.js",
+    "./security.js": "./security.js",
+    "./auth": "./auth.js",
+    "./auth.js": "./auth.js"
   }
 }

@@ -93,17 +93,53 @@ export const configSchema = {
         },
       },
     },
-    security: {
+    // Updated JWT-only security section
+    jwt: {
       type: 'object',
       properties: {
-        jwtSecret: {
+        secret: {
           type: 'string',
           default: 'singlet-dev-secret-change-in-production',
         },
-        sessionSecret: {
+        expiresIn: {
           type: 'string',
-          default: 'singlet-session-secret-change-in-production',
+          default: '7d',
         },
+      },
+    },
+    // Updated CORS section for multi-client support
+    cors: {
+      type: 'object',
+      properties: {
+        origins: {
+          type: ['array', 'string'], // Accept both array and string
+          items: { type: 'string' },
+          default: [
+            'http://localhost:3000',
+            'http://localhost:3001',
+            'capacitor://localhost',
+          ],
+        },
+        credentials: {
+          type: 'boolean',
+          default: true,
+        },
+      },
+    },
+    apps: {
+      type: 'object',
+      properties: {
+        gate: {
+          type: 'boolean',
+          default: true,
+        },
+        system: {
+          type: 'boolean',
+          default: true,
+        },
+      },
+      additionalProperties: {
+        type: 'boolean',
       },
     },
     features: {
@@ -120,20 +156,24 @@ export const configSchema = {
 };
 
 /**
- * Environment variable mapping is now handled automatically by @voilajsx/appkit
+ * Environment variable mapping is handled automatically by @voilajsx/appkit
  *
- * Mapping rules:
+ * Automatic mapping rules:
+ * - JWT_SECRET → jwt.secret
+ * - JWT_EXPIRES_IN → jwt.expiresIn
+ * - CORS_ORIGINS → cors.origins (comma-separated string → array)
+ * - CORS_CREDENTIALS → cors.credentials
  * - SERVER_PORT → server.port
  * - SERVER_HOST → server.host
- * - LOG_LEVEL → logging.level
+ * - LOGGING_LEVEL → logging.level
  * - FEATURES_WELCOME → features.welcome
  * - FEATURES_GREETING → features.greeting
- * - JWT_SECRET → security.jwtSecret
- * - SESSION_SECRET → security.sessionSecret
+ * - APPS_GATE → apps.gate
+ * - APPS_SYSTEM → apps.system
  *
  * Rule: UPPER_SNAKE_CASE → lower.dot.notation
  */
 export const envMap = {
-  // Note: This is now optional since appkit handles automatic mapping
-  // But we can keep explicit mappings for documentation
+  // Note: Environment mapping is automatic
+  // This object is kept for documentation purposes only
 };
